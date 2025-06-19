@@ -1,9 +1,15 @@
 // src/components/DeleteConfirmDialog.tsx
 import React from 'react';
 import BaseDialog from './BaseDialog.tsx';
-import { Book, DeleteConfirmDialogProps } from '../utils/interfaces.tsx';
+import { Book} from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
+
+export interface DeleteConfirmDialogProps {
+  book: Book | null;
+  onClose: () => void;
+  onDeleted: () => void;
+}
 
 const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({ book, onClose, onDeleted }) => {
   const handleDelete = async () => {

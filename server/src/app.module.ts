@@ -1,15 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
-<<<<<<< HEAD
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
-=======
-import { join } from 'path';
-
-import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -20,16 +13,11 @@ import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
 import { ReportsModule } from './_reports/reports.module';
 import { AdminSeeder } from './_seeders/admin.seeder';
-<<<<<<< HEAD
 import { AuthorsModule } from './authors/authors.module';
-=======
-import { Author } from './authors/author.entity';
-import { AuthorsModule } from './authors/authors.module';
-import { Bbk } from './bbk/bbk.entity';
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 import { BbkModule } from './bbk/bbk.module';
 import { UdcModule } from './udc/udc.module';
 import { PublishersModule } from './publisher/publishers.module';
+import { GrntiModule } from './grnti/grnti.module';
 
 @Module({
   imports: [
@@ -65,6 +53,7 @@ import { PublishersModule } from './publisher/publishers.module';
     BbkModule,
     UdcModule,
     PublishersModule,
+    GrntiModule,
   ],
   controllers: [AppController],
   providers: [AppService, AdminSeeder],

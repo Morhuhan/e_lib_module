@@ -13,9 +13,6 @@ export class UpdateBookDto {
   title?: string;
 
   @IsOptional() @IsString()
-  localIndex?: string;
-
-  @IsOptional() @IsString()
   bookType?: string;
 
   @IsOptional() @IsString()
@@ -30,6 +27,9 @@ export class UpdateBookDto {
   @IsOptional() @IsString()
   physDesc?: string;
 
+  @IsOptional() @IsString()
+  description?: string;
+
   /* ───────── авторы ───────── */
   /** список id авторов, выбранный в UI */
   @IsOptional() @IsArray() @IsInt({ each: true })
@@ -43,12 +43,17 @@ export class UpdateBookDto {
   udcAbbs?: string[];
 
   @IsOptional() @IsArray() @IsString({ each: true })
+  grntiCodes?: string[];
+
+  @IsOptional() @IsArray() @IsString({ each: true })
   bbkRawCodes?: string[];
 
   @IsOptional() @IsArray() @IsString({ each: true })
   udcRawCodes?: string[];
 
-  /* ───────── место публикации ───────── */
+  @IsOptional() @IsArray() @IsString({ each: true })
+  grntiRawCodes?: string[];
+
   @IsOptional()
   pubPlaces?: {
     city?: string;

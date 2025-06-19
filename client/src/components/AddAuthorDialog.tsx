@@ -1,15 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import BaseDialog from './BaseDialog.tsx';
 import httpClient from '../utils/httpsClient.tsx';
-
-// Интерфейс Author (взято из вашего сообщения)
-export interface Author {
-  id: number;
-  firstName: string;
-  patronymic: string | null;
-  lastName: string;
-  birthYear: number | null;
-}
+import { Author } from '../utils/interfaces.tsx';
 
 // Интерфейс для пропсов компонента
 interface AddAuthorDialogProps {

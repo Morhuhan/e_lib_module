@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  ChangeEvent,
+  Fragment,
+} from 'react';
 import clsx from 'clsx';
 import type { Book, PaginatedResponse } from '../utils/interfaces';
 import Pagination from '../components/Pagination.tsx';
@@ -8,55 +14,61 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal.tsx';
 
 const LIMIT_OPTIONS = [10, 20, 50] as const;
 
+/** Колонки таблицы (RAW-коды убраны, добавлена &laquo;Аннотация&raquo;) */
 const COLUMNS = [
-  { key: 'title', label: 'Название' },
-  { key: 'authors', label: 'Авторы' },
-  { key: 'bookType', label: 'Тип' },
-  { key: 'edit', label: 'Редакция' },
-  { key: 'series', label: 'Серия' },
-  { key: 'physDesc', label: 'Описание' },
-  { key: 'bbks', label: 'ББК' },
-  { key: 'udcs', label: 'УДК' },
-  { key: 'bbkRaws', label: 'ББК*' },
-  { key: 'udcRaws', label: 'УДК*' },
+  { key: 'title',             label: 'Название' },
+  { key: 'authors',           label: 'Авторы' },
+  { key: 'bookType',          label: 'Тип' },
+  { key: 'edit',              label: 'Редакция' },
+  { key: 'series',            label: 'Серия' },
+  { key: 'physDesc',          label: 'Хар-ки' },
+  { key: 'description',       label: 'Описание' },
+  { key: 'bbks',              label: 'ББК' },
+  { key: 'udcs',              label: 'УДК' },
+  { key: 'grntis',            label: 'ГРНТИ' },
   { key: 'publicationPlaces', label: 'Издательство' },
 ] as const;
 
-type SortState = { field: string; order: 'asc' | 'desc' } | null;
+type ColumnKey = (typeof COLUMNS)[number]['key'];
+type SortState = { field: ColumnKey; order: 'asc' | 'desc' } | null;
+
 const DEBOUNCE_MS = 400;
 
 const Lists: React.FC = () => {
-  const [rawSearch, setRawSearch] = useState('');
-  const [searchColumn, setSearchColumn] = useState<(typeof COLUMNS)[number]['key']>(COLUMNS[0].key);
+  /* ───── состояния ───── */
+  const [rawSearch,     setRawSearch]     = useState('');
+  const [searchColumn,  setSearchColumn]  = useState<ColumnKey>(COLUMNS[0].key);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState<typeof LIMIT_OPTIONS[number]>(LIMIT_OPTIONS[0]);
-  const [sort, setSort] = useState<SortState>(null);
-  const [data, setData] = useState<PaginatedResponse<Book> | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
-  const [editing, setEditing] = useState<Book | null>(null);
-  const [deleting, setDeleting] = useState<Book | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [page,          setPage]          = useState(1);
+  const [limit,         setLimit]         = useState<typeof LIMIT_OPTIONS[number]>(LIMIT_OPTIONS[0]);
+  const [sort,          setSort]          = useState<SortState>(null);
+  const [data,          setData]          = useState<PaginatedResponse<Book> | null>(null);
+  const [isLoading,     setIsLoading]     = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
+  const [reloadToken,   setReloadToken]   = useState(0);
+  const [editing,       setEditing]       = useState<Book | null>(null);
+  const [deleting,      setDeleting]      = useState<Book | null>(null);
+  const [expandedId,    setExpandedId]    = useState<number | null>(null);
 
-  const cycleSortState = useCallback((field: string) => {
+  /* ───── сортировка ───── */
+  const cycleSortState = useCallback((field: ColumnKey) => {
     setSort(prev => {
       if (!prev || prev.field !== field) return { field, order: 'asc' };
-      if (prev.order === 'asc') return { field, order: 'desc' };
+      if (prev.order === 'asc')          return { field, order: 'desc' };
       return null;
     });
     setPage(1);
   }, []);
 
+  /* ───── обработчики ───── */
   const handleRowClick = (bookId: number) => {
     const sel = window.getSelection();
     if (sel && sel.toString().length) return;
     setExpandedId(prev => (prev === bookId ? null : bookId));
   };
-
   const stopPropagation = (e: React.MouseEvent) => e.stopPropagation();
 
+  /* ───── загрузка данных ───── */
   useEffect(() => {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(async () => {
@@ -86,33 +98,23 @@ const Lists: React.FC = () => {
       }
     }, DEBOUNCE_MS);
 
-    return () => {
-      clearTimeout(timeoutId);
-      ctrl.abort();
-    };
+    return () => { clearTimeout(timeoutId); ctrl.abort(); };
   }, [rawSearch, searchColumn, onlyAvailable, page, limit, sort, reloadToken]);
 
-  const onSaved = useCallback(() => {
-    setEditing(null);
-    setReloadToken(v => v + 1);
-  }, []);
+  /* ───── callbacks из модалок ───── */
+  const onSaved   = useCallback(() => { setEditing(null);  setReloadToken(v => v + 1); }, []);
+  const onDeleted = useCallback(() => { setDeleting(null); setReloadToken(v => v + 1); }, []);
 
-  const onDeleted = useCallback(() => {
-    setDeleting(null);
-    setReloadToken(v => v + 1);
-  }, []);
-
+  /* ───── вычисления ───── */
   const totalPages = data ? Math.max(1, Math.ceil(data.total / limit)) : 1;
 
-  const arrowFor = (field: string) => {
-    if (!sort || sort.field !== field)
-      return { char: '▼', className: 'text-gray-400' };
-    return {
-      char: sort.order === 'asc' ? '▲' : '▼',
-      className: 'text-black',
-    };
+  /* ───── утилита для стрелочек сортировки ───── */
+  const arrowFor = (field: ColumnKey) => {
+    if (!sort || sort.field !== field) return { char: '▼', className: 'text-gray-400' };
+    return { char: sort.order === 'asc' ? '▲' : '▼', className: 'text-black' };
   };
 
+  /* ───── рендер ───── */
   return (
     <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-lg font-medium mb-4">Список книг</h2>
@@ -123,20 +125,18 @@ const Lists: React.FC = () => {
         </div>
       )}
 
-      {/* ───── Фильтры поиска ───── */}
+      {/* ─── Фильтры поиска ─── */}
       <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <select
           value={searchColumn}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-            setSearchColumn(e.target.value as typeof searchColumn);
+            setSearchColumn(e.target.value as ColumnKey);
             setPage(1);
           }}
           className="border rounded px-2 py-1 text-sm"
         >
           {COLUMNS.map(c => (
-            <option key={c.key} value={c.key}>
-              {c.label}
-            </option>
+            <option key={c.key} value={c.key}>{c.label}</option>
           ))}
         </select>
 
@@ -144,10 +144,7 @@ const Lists: React.FC = () => {
           type="text"
           placeholder="Введите поисковый запрос…"
           value={rawSearch}
-          onChange={e => {
-            setRawSearch(e.target.value);
-            setPage(1);
-          }}
+          onChange={e => { setRawSearch(e.target.value); setPage(1); }}
           className="border rounded px-2 py-1 text-sm w-full sm:w-64"
         />
 
@@ -155,16 +152,13 @@ const Lists: React.FC = () => {
           <input
             type="checkbox"
             checked={onlyAvailable}
-            onChange={e => {
-              setOnlyAvailable(e.target.checked);
-              setPage(1);
-            }}
+            onChange={e => { setOnlyAvailable(e.target.checked); setPage(1); }}
           />
           Только доступные
         </label>
       </div>
 
-      {/* ───── Таблица книг ───── */}
+      {/* ─── Таблица книг ─── */}
       <div className="relative overflow-x-auto border rounded">
         <div className="w-full">
           <table className="w-full text-sm">
@@ -186,6 +180,7 @@ const Lists: React.FC = () => {
                 <th className="p-2 border whitespace-nowrap">Действия</th>
               </tr>
             </thead>
+
             <tbody>
               {isLoading ? (
                 <tr>
@@ -200,8 +195,8 @@ const Lists: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                data.data.map((b) => (
-                  <React.Fragment key={b.id}>
+                data.data.map(b => (
+                  <Fragment key={b.id}>
                     <tr
                       className="hover:bg-gray-200 cursor-pointer"
                       onClick={() => handleRowClick(b.id)}
@@ -223,50 +218,42 @@ const Lists: React.FC = () => {
                       </td>
                       <td className="p-2 border">{b.series ?? '—'}</td>
                       <td className="p-2 border">{b.physDesc ?? '—'}</td>
+                      <td className="p-2 border">{b.description ?? '—'}</td>
                       <td className="p-2 border">
-                        {(b.bbks ?? []).map(x => x.bbkAbb).join(', ') || '—'}
+                        {(b.bbks  ?? []).map(x => x.bbkAbb ).join(', ') || '—'}
                       </td>
                       <td className="p-2 border">
-                        {(b.udcs ?? []).map(x => x.udcAbb).join(', ') || '—'}
+                        {(b.udcs  ?? []).map(x => x.udcAbb ).join(', ') || '—'}
                       </td>
                       <td className="p-2 border">
-                        {(b.bbkRaws ?? []).map(x => x.bbkCode).join(', ') || '—'}
-                      </td>
-                      <td className="p-2 border">
-                        {(b.udcRaws ?? []).map(x => x.udcCode).join(', ') || '—'}
+                        {(b.grntis ?? []).map(x => x.code   ).join(', ') || '—'}
                       </td>
                       <td className="p-2 border">
                         {(b.publicationPlaces ?? [])
-                          .map(p =>
-                            [p.city, p.publisher?.name, p.pubYear]
-                              .filter(Boolean)
-                              .join(', '),
-                          )
+                          .map(p => [p.city, p.publisher?.name, p.pubYear]
+                            .filter(Boolean)
+                            .join(', '))
                           .join('; ') || '—'}
                       </td>
                       <td className="p-2 border text-center space-x-2 whitespace-nowrap">
                         <button
                           className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 transition duration-150 ease-in-out text-sm font-medium"
-                          onClick={(e) => {
-                            stopPropagation(e);
-                            setEditing(b);
-                          }}
+                          onClick={(e) => { stopPropagation(e); setEditing(b); }}
                           title="Изменить книгу"
                         >
                           Изм
                         </button>
                         <button
                           className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 transition duration-150 ease-in-out text-sm font-medium"
-                          onClick={(e) => {
-                            stopPropagation(e);
-                            setDeleting(b);
-                          }}
+                          onClick={(e) => { stopPropagation(e); setDeleting(b); }}
                           title="Удалить книгу"
                         >
                           Удл
                         </button>
                       </td>
                     </tr>
+
+                    {/* ── Экземпляры ── */}
                     {expandedId === b.id && (
                       <tr className="bg-blue-100">
                         <td colSpan={COLUMNS.length + 1} className="p-0">
@@ -284,6 +271,10 @@ const Lists: React.FC = () => {
                             <tbody>
                               {(b.bookCopies ?? []).map(c => {
                                 const issued = (c.borrowRecords ?? []).length > 0;
+                                const priceNum =
+                                  c.price != null
+                                    ? Number(c.price)
+                                    : null;
                                 return (
                                   <tr key={c.id}>
                                     <td className="p-2 border text-center">{c.id}</td>
@@ -295,7 +286,9 @@ const Lists: React.FC = () => {
                                     </td>
                                     <td className="p-2 border">{c.storagePlace || '—'}</td>
                                     <td className="p-2 border">
-                                      {c.price != null ? c.price.toFixed(2) : '—'}
+                                      {priceNum != null && !isNaN(priceNum)
+                                        ? priceNum.toFixed(2)               // ★ FIX
+                                        : '—'}
                                     </td>
                                     <td
                                       className={clsx(
@@ -313,7 +306,7 @@ const Lists: React.FC = () => {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 ))
               )}
             </tbody>
@@ -321,19 +314,16 @@ const Lists: React.FC = () => {
         </div>
       </div>
 
-      {/* ───── Пагинация ───── */}
+      {/* ─── Пагинация ─── */}
       <Pagination
         page={page}
         totalPages={totalPages}
         limit={limit}
         onPageChange={setPage}
-        onLimitChange={l => {
-          setLimit(l as typeof limit);
-          setPage(1);
-        }}
+        onLimitChange={l => { setLimit(l as typeof limit); setPage(1); }}
       />
 
-      {/* ───── Модальные окна ───── */}
+      {/* ─── Модальные окна ─── */}
       <EditBookModal
         book={editing}
         onClose={() => setEditing(null)}

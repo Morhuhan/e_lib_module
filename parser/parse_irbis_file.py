@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-<<<<<<< HEAD
-Парсер экспорта ИРБИС → SQL-дамп (v4.12, UDC/GRNTI, BBK-raw из 606/610,
-inline copies, dedup, авторы, добавлено поле #331 как description).
+Парсер экспорта ИРБИС &rarr; SQL-дамп  
+v4.13 (UDC/GRNTI, BBK-raw, inline copies, dedup, авторы, description #331)
 
-Изменения v4.12
-───────────────
-• Добавлено считывание поля #331 как description для таблицы book.
-• ББК берётся ТОЛЬКО из полей 606 и 610, обрабатывается через
-  fix_bbk.py и без какой-либо сверки; 903 игнорируется.
-• Секция «Subjects 606» удалена.
-• Статистика BBK отражает лишь объём сырого импорта.
+Обновление 2025-06-19
+─────────────────────
+• **Новая логика GRNTI**:  
+  – Сырые записи в `book_grnti_raw` попадают **только** для тех
+    книг, у которых **ни один** код не совпал со справочником
+    `public.grnti`.  
+  – Поведение аналогично тому, как уже обрабатывается УДК:
+    совпавшие коды идут в `book_grnti`, а не совпавшие — в
+    `book_grnti_raw`, но только если у книги вообще нет совпадений.  
+• Вставка в `book_grnti_raw` из-процесса записи удалена; она
+  выполняется после глобальной фильтрации.
 """
 
 from __future__ import annotations
-import sys
-import os
-import re
+import sys, os, re
 from datetime import datetime
 from typing import Dict, List, Set, Tuple, Iterable, Optional
 
@@ -26,29 +27,6 @@ import psycopg2
 from fix_bbk      import collect as collect_bbk_codes
 from fix_udc      import load_udc_map,  filter_links as filter_udc_links
 from fix_grnti    import load_grnti_map, filter_links as filter_grnti_links
-=======
-Парсер экспорта ИРБИС &rarr; SQL-дамп (v4.7, inline copies, dedup, авторы).
-
-Изменения v4.7
-──────────────
-• Таблица **public.author** имеет колонки `last_name`, `first_name`,
-  `patronymic`, `birth_year`.  Соответственно:
-    – автор теперь сохраняется по этим полям, а не в &laquo;name&raquo;;
-    – поддержан уникальный ключ (last_name, first_name, patronymic, birth_year).
-• Функция split_author_fields() извлекает Ф + инициалы из нормализованной
-  строки &laquo;Иванов И.О.&raquo; в отдельные колонки.
-• Добавлена утилита sql_val() для корректного NULL/quote.
-• Версия повышена до 4.7.
-"""
-
-from __future__ import annotations
-import sys, os, re, psycopg2
-from datetime import datetime
-from typing import Dict, List, Set, Tuple, Iterable, Optional
-
-from fix_bbk      import load_bbk_map, filter_links as filter_bbk_links
-from fix_udc      import load_udc_map, filter_links as filter_udc_links
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 from fix_pub_info import parse_pub_info
 from fix_authors  import normalize_author, parse_author_700_701
 
@@ -57,7 +35,6 @@ def sql_escape(s: str) -> str:
     return s.replace("'", "''")
 
 def sql_val(s: str | None) -> str:
-<<<<<<< HEAD
     return f"'{sql_escape(s)}'" if s else "NULL"
 
 _SPLIT_CODES_RE = re.compile(r'[;,]\s*|\s{2,}')
@@ -66,22 +43,6 @@ def split_codes(raw: str) -> List[str]:
 
 # ───── авторы ─────
 def split_author_fields(author: str) -> Tuple[str, str, str]:
-=======
-    """Строка &rarr; SQL-литерал или NULL."""
-    return f"'{sql_escape(s)}'" if s else "NULL"
-
-_split_codes_re = re.compile(r'[;,]\s*|\s{2,}')
-def split_codes(raw: str) -> List[str]:
-    return [x.strip() for x in _split_codes_re.split(raw) if x.strip()]
-
-# ───── авторы: разбор &laquo;Фамилия И.О.&raquo; &rarr; колонки ─────
-def split_author_fields(author: str) -> Tuple[str, str, str]:
-    """
-    &laquo;Иванов И.О.&raquo; &rarr; ('Иванов', 'И', 'О')
-    &laquo;Петров П.&raquo;   &rarr; ('Петров', 'П', '')
-    &laquo;Сидоров&raquo;     &rarr; ('Сидоров', '', '')
-    """
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
     author = author.strip()
     if ' ' not in author:
         return author, '', ''
@@ -135,6 +96,12 @@ def _normalize_price(raw: str) -> Optional[str]:
 def parse_copies(
     pairs: List[Tuple[int,str]]
 ) -> Tuple[List[Tuple[int,str|None,str|None,str|None,str|None]], int]:
+    """
+    Очистка и нормализация подполей поля 910 (экземпляры).
+    Возвращает:
+        cleaned — нормализованный список
+        skipped — сколько строк пропущено из-за ошибок
+    """
     cleaned: List[Tuple[int,str|None,str|None,str|None,str|None]] = []
     skipped = 0
     for book_id, raw in pairs:
@@ -169,46 +136,30 @@ def parse_copies(
             _flush()
     return cleaned, skipped
 
+
 # ────────────────────── main ───────────────────────────
 def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
     print(f"Начало обработки файла: {infile}")
 
-<<<<<<< HEAD
-    # (last, first, patr, birth) → id
-=======
-    # маппинг авторов: (last, first, patr, birth) &rarr; id
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
+    # (last, first, patr, birth) &rarr; id
     author_ids: Dict[Tuple[str,str,str,None], int] = {}
     next_author_id = 1
     total_book_author_links = 0
 
     with psycopg2.connect(dsn) as conn, conn.cursor() as cur:
-<<<<<<< HEAD
         udc_map   = load_udc_map(cur)
         grnti_map = load_grnti_map(cur)
-=======
-        bbk_map = load_bbk_map(cur)
-        udc_map = load_udc_map(cur)
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 
         try:
             with open(infile, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         except FileNotFoundError:
-<<<<<<< HEAD
-            sys.exit(f"Ошибка: файл «{infile}» не найден.")
-=======
             sys.exit(f"Ошибка: файл &laquo;{infile}&raquo; не найден.")
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 
         with open(outfile, 'w', encoding='utf-8') as sql_out:
             sql_out.write(f"""\
 -- ======================================================
-<<<<<<< HEAD
--- SQL-дамп, создан parse_irbis_file v4.12
-=======
--- SQL-дамп, создан parse_irbis_file v4.7
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
+-- SQL-дамп, создан parse_irbis_file v4.13
 -- Дата создания : {datetime.now():%Y-%m-%d %H:%M:%S}
 -- Входной файл  : {infile}
 -- ======================================================
@@ -219,16 +170,11 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
             record_count = 0
             publisher_ids: Dict[str,int] = {}
             next_publisher_id = 1
-<<<<<<< HEAD
 
             bbk_pairs_raw   : List[Tuple[int,str]] = []   # для INSERT
             bbk_field_pairs : List[Tuple[str,str]] = []   # 606/610
             udc_pairs_raw   : List[Tuple[int,str]] = []
             grnti_pairs_raw : List[Tuple[int,str]] = []
-=======
-            bbk_pairs_raw: List[Tuple[int,str]] = []
-            udc_pairs_raw: List[Tuple[int,str]] = []
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
             copies_pairs_raw: List[Tuple[int,str]] = []
 
             # ───── process_record ─────
@@ -238,20 +184,11 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                     return
 
                 record_count += 1
-<<<<<<< HEAD
                 title = type_ = edit = edition_statement = description = ''
                 pub_info_raw = phys_desc = series_ = ''
                 udc_raw = grnti_raw = ''
                 authors: Set[str] = set()
                 copies : List[str] = []
-=======
-                # --- поля
-                title = type_ = edit = edition_statement = ''
-                pub_info_raw = phys_desc = series_ = ''
-                bbk_raw = udc_raw = ''
-                authors: Set[str] = set()
-                copies: List[str] = []
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 
                 for line in rec:
                     line = line.rstrip('\n')
@@ -261,12 +198,7 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                     tag = tag[1:]
 
                     if tag == '200':
-<<<<<<< HEAD
                         sd = {k:v for k,v in _iter_subfields(content)}
-=======
-                        subs = _iter_subfields(content)
-                        sd = {k:v for k,v in subs}
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
                         title = sd.get('A','').strip()
                         type_ = sd.get('E','').strip()
                         edit  = sd.get('F','').strip()
@@ -282,7 +214,6 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                     elif tag == '225':
                         sd = {k:v for k,v in _iter_subfields(content)}
                         series_ = ' '.join(x for x in (sd.get('V','').strip(), sd.get('A','').strip()) if x)
-<<<<<<< HEAD
                     elif tag == '331':
                         description = content.strip()
                     elif tag == '675':
@@ -291,12 +222,6 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                         grnti_raw = content.strip()
                     elif tag in ('606', '610'):
                         bbk_field_pairs.append((tag, content.strip()))
-=======
-                    elif tag == '675':
-                        udc_raw = content.strip()
-                    elif tag == '964':
-                        bbk_raw = content.strip()
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
                     elif tag in ('700','701'):
                         a = parse_author_700_701(content)
                         if a:
@@ -322,16 +247,10 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                 sql_out.write(f"\n-- --- Книга #{record_count} ---\n")
                 sql_out.write(
                     "INSERT INTO public.book("
-<<<<<<< HEAD
                     "id,title,\"type\",edit,edition_statement,phys_desc,series,description) VALUES("
                     f"{record_count}, {sql_val(title)}, {sql_val(type_)}, {sql_val(edit)}, "
                     f"{sql_val(edition_statement)}, {sql_val(phys_desc)}, {sql_val(series_)}, "
                     f"{sql_val(description)});\n"
-=======
-                    "id,title,\"type\",edit,edition_statement,phys_desc,series) VALUES("
-                    f"{record_count}, {sql_val(title)}, {sql_val(type_)}, {sql_val(edit)}, "
-                    f"{sql_val(edition_statement)}, {sql_val(phys_desc)}, {sql_val(series_)});\n"
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
                 )
 
                 # --- Место публикации ---
@@ -363,9 +282,9 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                     )
                     total_book_author_links += 1
 
-<<<<<<< HEAD
-                # --- BBK / UDC / GRNTI RAW ---
+                # --- BBK / UDC / GRNTI RAW (сбор, но не INSERT) ---
                 sql_out.write("\n-- --- Коды BBK / UDC / GRNTI (RAW) ---\n")
+                # BBK: сразу вставляем, как и раньше
                 for code in collect_bbk_codes(bbk_field_pairs):
                     bbk_pairs_raw.append((record_count, code))
                     sql_out.write(
@@ -373,31 +292,18 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                         f"VALUES ({record_count},'{code}') ON CONFLICT DO NOTHING;\n")
                 bbk_field_pairs.clear()
 
-=======
-                # --- BBK / UDC RAW ---
-                sql_out.write("\n-- --- Коды BBK / UDC (RAW) ---\n")
-                for code in split_codes(bbk_raw):
-                    bbk_pairs_raw.append((record_count, code))
-                    sql_out.write(
-                        f"INSERT INTO public.book_bbk_raw(book_id,bbk_code) "
-                        f"VALUES ({record_count},{sql_val(code)}) ON CONFLICT DO NOTHING;\n")
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
+                # UDC: сразу пишем в RAW (логика не менялась)
                 for code in split_codes(udc_raw):
                     udc_pairs_raw.append((record_count, code))
                     sql_out.write(
                         f"INSERT INTO public.book_udc_raw(book_id,udc_code) "
                         f"VALUES ({record_count},{sql_val(code)}) ON CONFLICT DO NOTHING;\n")
-<<<<<<< HEAD
+
+                # GRNTI: ТОЛЬКО собираем для дальнейшей фильтрации
                 for code in split_codes(grnti_raw):
                     grnti_pairs_raw.append((record_count, code))
-                    sql_out.write(
-                        f"INSERT INTO public.book_grnti_raw(book_id,grnti_code) "
-                        f"VALUES ({record_count},{sql_val(code)}) ON CONFLICT DO NOTHING;\n")
 
-=======
-
-                # экземлпяры
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
+                # Экземпляры
                 for cp in copies:
                     copies_pairs_raw.append((record_count, cp))
 
@@ -412,43 +318,40 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
             if record_lines:
                 process_record(record_lines)
 
-<<<<<<< HEAD
             # ───── UDC / GRNTI clean ─────
             udc_links,   udc_skipped   = filter_udc_links(udc_pairs_raw,   udc_map)
-            grnti_links, grnti_skipped = filter_grnti_links(grnti_pairs_raw, grnti_map)
+            grnti_links, grnti_skipped_any_code = filter_grnti_links(grnti_pairs_raw, grnti_map)
 
+            # ---------- UDC (очищенные) ----------
             sql_out.write("\n-- ======================================\n-- UDC (очищенные)\n-- ======================================\n")
-            for bid, udcid in udc_links:
+            for bid, udc_id in udc_links:
                 sql_out.write(
                     f"INSERT INTO public.book_udc(book_id,udc_id) "
-                    f"VALUES ({bid},{udcid}) ON CONFLICT DO NOTHING;\n")
+                    f"VALUES ({bid},{udc_id}) ON CONFLICT DO NOTHING;\n")
             sql_out.write(f"-- UDC: вставлено {len(udc_links)}, пропущено {udc_skipped}\n")
 
+            # ---------- GRNTI (очищенные) ----------
             sql_out.write("\n-- ======================================\n-- GRNTI (очищенные)\n-- ======================================\n")
             for bid, gid in grnti_links:
                 sql_out.write(
                     f"INSERT INTO public.book_grnti(book_id,grnti_id) "
                     f"VALUES ({bid},{gid}) ON CONFLICT DO NOTHING;\n")
-            sql_out.write(f"-- GRNTI: вставлено {len(grnti_links)}, пропущено {grnti_skipped}\n")
+            sql_out.write(f"-- GRNTI: вставлено {len(grnti_links)}, пропущено {grnti_skipped_any_code}\n")
 
-=======
-            # ───── BBK / UDC clean ─────
-            bbk_links, bbk_skipped = filter_bbk_links(bbk_pairs_raw, bbk_map)
-            udc_links, udc_skipped = filter_udc_links(udc_pairs_raw, udc_map)
+            # ---------- GRNTI RAW (только книги без совпадений) ----------
+            matched_grnti_books: set[int] = {bid for bid, _ in grnti_links}
+            grnti_raw_filtered = [
+                (bid, code) for bid, code in grnti_pairs_raw
+                if bid not in matched_grnti_books
+            ]
 
-            sql_out.write("\n-- ======================================\n-- BBK (очищенные)\n-- ======================================\n")
-            for bid, bbkid in bbk_links:
-                sql_out.write(f"INSERT INTO public.book_bbk(book_id,bbk_id) "
-                              f"VALUES ({bid},{bbkid}) ON CONFLICT DO NOTHING;\n")
-            sql_out.write(f"-- BBK: вставлено {len(bbk_links)}, пропущено {bbk_skipped}\n")
+            sql_out.write("\n-- ======================================\n-- GRNTI RAW (only unmatched books)\n-- ======================================\n")
+            for bid, code in grnti_raw_filtered:
+                sql_out.write(
+                    f"INSERT INTO public.book_grnti_raw(book_id,grnti_code) "
+                    f"VALUES ({bid},{sql_val(code)}) ON CONFLICT DO NOTHING;\n")
+            sql_out.write(f"-- GRNTI RAW: добавлено {len(grnti_raw_filtered)} (книги без совпавших кодов)\n")
 
-            sql_out.write("\n-- ======================================\n-- UDC (очищенные)\n-- ======================================\n")
-            for bid, udcid in udc_links:
-                sql_out.write(f"INSERT INTO public.book_udc(book_id,udc_id) "
-                              f"VALUES ({bid},{udcid}) ON CONFLICT DO NOTHING;\n")
-            sql_out.write(f"-- UDC: вставлено {len(udc_links)}, пропущено {udc_skipped}\n")
-
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
             # ───── Экземпляры ─────
             cleaned_copies, skipped_copies = parse_copies(copies_pairs_raw)
             seen_pairs: set[tuple[int,str]] = set()
@@ -471,21 +374,16 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
         # ───── финальная статистика ─────
         print(f"""\
 Обработка завершена.
-- Записей IBIS          : {record_count}
-<<<<<<< HEAD
-- BBK RAW               : {len(bbk_pairs_raw):5}   (606/610; без сверки)
-- UDC RAW               : {len(udc_pairs_raw):5}  (очищено {len(udc_links):5}, пропущено {udc_skipped})
-- GRNTI RAW             : {len(grnti_pairs_raw):5}  (очищено {len(grnti_links):5}, пропущено {grnti_skipped})
-=======
-- BBK RAW               : {len(bbk_pairs_raw)}  (очищено {len(bbk_links)}, пропущено {bbk_skipped})
-- UDC RAW               : {len(udc_pairs_raw)}  (очищено {len(udc_links)}, пропущено {udc_skipped})
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
-- Экземпляры вставлено  : {len(seen_pairs)}
-  ▸ дубликаты пропущено  : {skipped_dupes}
-  ▸ битые строки         : {skipped_copies}
-- Авторов вставлено     : {len(author_ids)}
-- Связей книга-автор    : {total_book_author_links}
-- SQL-файл создан       : {outfile}
+- Записей IBIS        : {record_count}
+- BBK RAW             : {len(bbk_pairs_raw)}
+- UDC RAW             : {len(udc_pairs_raw)}  (очищено {len(udc_links)}, пропущено {udc_skipped})
+- GRNTI RAW           : {len(grnti_raw_filtered)}  (очищено {len(grnti_links)}, пропущено {grnti_skipped_any_code})
+- Экземпляры вставлено: {len(seen_pairs)}
+  ▸ дубликаты         : {skipped_dupes}
+  ▸ битые строки      : {skipped_copies}
+- Авторов вставлено   : {len(author_ids)}
+- Связей книга-автор  : {total_book_author_links}
+- SQL-файл создан     : {outfile}
 """)
 
 # ──────────────── CLI ────────────────

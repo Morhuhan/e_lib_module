@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-<<<<<<< HEAD
-=======
-"""
-Нормализация поля #210 (publication info).
-
-Возвращает кортеж (publisher, city, year):
-    publisher  –  название издательства   (None, если не найдено)
-    city       –  город публикации        (None, если не найдено)
-    year       –  целое число-год         (None, если не найден)
-
-Строки из примера:
-    "Юнити- Дана, М, 1999"      &rarr; ("Юнити- Дана", "Москва",          1999)
-    "Новоуральск, 1999"         &rarr; (None,           "Новоуральск",     1999)
-    "АО АСКОН, М. СПб, 1999"    &rarr; ("АО АСКОН",     "Санкт-Петербург", 1999)
-    "Cambridge, 1999"           &rarr; (None,           "Cambridge",       1999)
-"""
-
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 from __future__ import annotations
 import re
 from typing import Optional, Tuple
@@ -31,7 +13,6 @@ _CITY_ABBR = {
     'М. ': 'Москва',
     'СПб': 'Санкт-Петербург',
     'М. СПб': 'Санкт-Петербург',
-<<<<<<< HEAD
     'Л': 'Ленинград',
     'Л.': 'Ленинград',
     'Екб': 'Екатеринбург',
@@ -46,46 +27,27 @@ _CITY_ABBR = {
     'Влд': 'Волгоград',
     'Кл': 'Калининград',
     'Крс': 'Красноярск',
-=======
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 }
 
 # Признаки, по которым строка скорее всего является издательством
 _PUBLISHER_HINTS = (
-<<<<<<< HEAD
     'изд', 'press', 'publisher',
     'ao ', 'ооо ', 'zao ', 'акц',
-=======
-    'изд', 'press', 'publisher',        # рус/англ слова
-    'ao ', 'ооо ', 'zao ', 'акц',       # орг-формы
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
     'gmbh', 'ltd', 'srl', 'llc',
 )
 
 def _cleanup(token: str) -> str:
     """Удаляем лишние пробелы и кавычки-ёлочки."""
-<<<<<<< HEAD
     token = token.strip().strip('«»“”"')
-=======
-    token = token.strip().strip('&laquo;&raquo;“”"')
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
     return re.sub(r'\s+', ' ', token)
 
 def _looks_like_city(token: str) -> bool:
     """Грубая эвристика для определения города."""
     if token in _CITY_ABBR:
         return True
-<<<<<<< HEAD
     if re.fullmatch(r'[A-ZА-ЯЁ][A-Za-zА-Яа-яёЁ\-]+', token):
         return True
     if token.endswith(('ск', 'ск-на-Дону', 'бург', 'град', 'город', 'инск', 'поль', 'од')):
-=======
-    # одно слово, первая буква заглавная, в слове нет точек/кавычек/цифр
-    if re.fullmatch(r'[A-ZА-ЯЁ][A-Za-zА-Яа-яёЁ\-]+', token):
-        return True
-    # заканчивается на типичные русские суффиксы городов
-    if token.endswith(('ск', 'ск-на-Дону', 'бург')):
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
         return True
     return False
 

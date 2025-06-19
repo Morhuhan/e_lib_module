@@ -12,6 +12,8 @@ import { BookPubPlace } from 'src/book_pub_place/book-pub-place.entity';
 import { Publisher } from 'src/publisher/publisher.entity';
 import { BookBbkRaw } from 'src/bbk_raw/book-bbk-raw.entity';
 import { BookUdcRaw } from 'src/udc_raw/book-udc-raw.entity';
+import { Grnti } from 'src/grnti/grnti.entity';
+import { BookGrntiRaw } from 'src/grnti_raw/book-grnti-raw.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -21,10 +23,12 @@ import { BookUdcRaw } from 'src/udc_raw/book-udc-raw.entity';
       Author,
       Bbk,
       Udc,
+      Grnti,
       BookPubPlace,
       Publisher,
       BookBbkRaw,
       BookUdcRaw,
+      BookGrntiRaw,
     ]),
   ],
   providers: [BooksService],

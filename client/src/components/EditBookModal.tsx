@@ -4,45 +4,49 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'react-toastify';
 import { X } from 'lucide-react';
 
+import Chip from './Chip.tsx';
 import BaseDialog from './BaseDialog.tsx';
 import httpClient from '../utils/httpsClient.tsx';
-import AuthorChip from './AuthorChip.tsx';
-import CodeChip from './CodeChip.tsx';
+
 import AddAuthorDialog from './AddAuthorDialog.tsx';
 import AddBbkDialog from './AddBbkDialog.tsx';
 import AddUdkDialog from './AddUdkDialog.tsx';
-import AddPublisherDialog, {
-  Publisher,
-} from './AddPublisherDialog.tsx';
+import AddGrntiDialog from './AddGrntiDialog.tsx';
+import AddPublisherDialog, { Publisher } from './AddPublisherDialog.tsx';
 import {
   Author,
   Book,
-  EditBookModalProps,
   FormValues,
   bookSchema,
 } from '../utils/interfaces.tsx';
 import { ClassCode } from './AddBbkDialog.tsx';
+
+export interface EditBookModalProps {
+  book: Book | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
 
 const EditBookModal: React.FC<EditBookModalProps> = ({
   book,
   onClose,
   onSaved,
 }) => {
-  /* ---------- state ---------- */
+  /* ───────── state ───────── */
   const [fullBook, setFullBook] = useState<Book | null>(null);
   const [isBookLoading, setIsBookLoading] = useState(false);
-
   const [authorsList, setAuthorsList] = useState<Author[]>([]);
-  const [bbkList, setBbkList] = useState<ClassCode[]>([]);
-  const [udcList, setUdcList] = useState<ClassCode[]>([]);
+  const [bbkList,  setBbkList]  = useState<ClassCode[]>([]);
+  const [udcList,  setUdcList]  = useState<ClassCode[]>([]);
+  const [grntiList,setGrntiList] = useState<ClassCode[]>([]);
   const [publisher, setPublisher] = useState<Publisher | null>(null);
+  const [addAuthorDlgOpen,   setAddAuthorDlgOpen]   = useState(false);
+  const [addBbkDlgOpen,      setAddBbkDlgOpen]      = useState(false);
+  const [addUdkDlgOpen,      setAddUdkDlgOpen]      = useState(false);
+  const [addGrntiDlgOpen,    setAddGrntiDlgOpen]    = useState(false);
+  const [addPublisherDlgOpen,setAddPublisherDlgOpen]= useState(false);
 
-  const [addAuthorDlgOpen, setAddAuthorDlgOpen] = useState(false);
-  const [addBbkDlgOpen, setAddBbkDlgOpen] = useState(false);
-  const [addUdkDlgOpen, setAddUdkDlgOpen] = useState(false);
-  const [addPublisherDlgOpen, setAddPublisherDlgOpen] = useState(false);
-
-  /* ---------- form ---------- */
+  /* ───────── form ───────── */
   const {
     register,
     handleSubmit,
@@ -54,15 +58,15 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     mode: 'onBlur',
   });
 
-  /* ---------- load full book ---------- */
+  /* ───────── load full book ───────── */
   useEffect(() => {
     if (!book) return;
 
     const fetchBook = async () => {
       setIsBookLoading(true);
       try {
-        const response = await httpClient.get(`/books/${book.id}`);
-        setFullBook(response.data as Book);
+        const { data } = await httpClient.get(`/books/${book.id}`);
+        setFullBook(data as Book);
       } catch (err) {
         console.error(err);
         toast.error('Не удалось загрузить данные книги');
@@ -74,29 +78,28 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     fetchBook();
   }, [book]);
 
-  /* ---------- prefill after load ---------- */
+  /* ───────── prefill after load ───────── */
   useEffect(() => {
     if (!fullBook) return;
 
     reset({
-      title: fullBook.title ?? '',
-      bookType: fullBook.bookType ?? '',
-      edit: fullBook.edit ?? '',
+      title           : fullBook.title            ?? '',
+      bookType        : fullBook.bookType         ?? '',
+      edit            : fullBook.edit             ?? '',
       editionStatement: fullBook.editionStatement ?? '',
-      series: fullBook.series ?? '',
-      physDesc: fullBook.physDesc ?? '',
-      authors: '',
-      bbkAbbs: '',
-      udcAbbs: '',
-      bbkRaw: (fullBook.bbkRaws ?? [])
-        .map((r) => r.bbkCode)
-        .join(', '),
-      udcRaw: (fullBook.udcRaws ?? [])
-        .map((r) => r.udcCode)
-        .join(', '),
-      pubCity: fullBook.publicationPlaces?.[0]?.city ?? '',
+      series          : fullBook.series           ?? '',
+      physDesc        : fullBook.physDesc         ?? '',
+      description     : fullBook.description      ?? '',
+      authors         : '',
+      bbkAbbs         : '',
+      udcAbbs         : '',
+      grntiAbbs       : '',
+      bbkRaw          : (fullBook.bbkRaws   ?? []).map(r => r.bbkCode  ).join(', '),
+      udcRaw          : (fullBook.udcRaws   ?? []).map(r => r.udcCode  ).join(', '),
+      grntiRaw        : (fullBook.grntiRaws ?? []).map(r => r.grntiCode).join(', '),
+      pubCity: fullBook.publicationPlaces?.[0]?.city            ?? '',
       pubName: fullBook.publicationPlaces?.[0]?.publisher?.name ?? '',
-      pubYear: fullBook.publicationPlaces?.[0]?.pubYear ?? undefined,
+      pubYear: fullBook.publicationPlaces?.[0]?.pubYear         ?? undefined,
     });
 
     setAuthorsList(fullBook.authors ?? []);
@@ -113,6 +116,12 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
         code: u.udcAbb,
       }))
     );
+    setGrntiList(
+      (fullBook.grntis ?? []).map((g, i) => ({
+        id: g.id ?? i,
+        code: g.code,
+      }))
+    );
 
     setPublisher(
       fullBook.publicationPlaces?.[0]?.publisher
@@ -120,18 +129,15 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
             id: fullBook.publicationPlaces[0].publisher.id,
             name: fullBook.publicationPlaces[0].publisher.name,
           }
-        : null,
+        : null
     );
   }, [fullBook, reset]);
 
-  /* ---------- keep hidden fields up-to-date ---------- */
+  /* ───────── keep hidden fields up-to-date ───────── */
   useEffect(() => {
     const names = authorsList
       .map((a) =>
-        [a.lastName, a.firstName, a.patronymic]
-          .filter(Boolean)
-          .join(' ')
-          .trim()
+        [a.lastName, a.firstName, a.patronymic].filter(Boolean).join(' ').trim()
       )
       .join('; ');
     setValue('authors', names, { shouldValidate: false });
@@ -141,7 +147,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     setValue(
       'bbkAbbs',
       bbkList.map((b) => b.code).join(', '),
-      { shouldValidate: false },
+      { shouldValidate: false }
     );
   }, [bbkList, setValue]);
 
@@ -149,48 +155,46 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     setValue(
       'udcAbbs',
       udcList.map((u) => u.code).join(', '),
-      { shouldValidate: false },
+      { shouldValidate: false }
     );
   }, [udcList, setValue]);
+
+  useEffect(() => {
+    setValue(
+      'grntiAbbs',
+      grntiList.map((g) => g.code).join(', '),
+      { shouldValidate: false }
+    );
+  }, [grntiList, setValue]);
 
   useEffect(() => {
     setValue('pubName', publisher?.name ?? '', { shouldValidate: false });
   }, [publisher, setValue]);
 
-  /* ---------- submit ---------- */
+  /* ───────── submit ───────── */
   const submit = handleSubmit(async (values) => {
     if (!fullBook) return;
 
     const dto: Record<string, any> = {};
 
     (
-      [
-        'title',
-        'bookType',
-        'edit',
-        'editionStatement',
-        'series',
-        'physDesc',
-      ] as const
+      ['title', 'bookType', 'edit', 'editionStatement', 'series', 'physDesc', 'description'] as const
     ).forEach((k) => {
-      const v = values[k]?.trim();
+      const v = values[k]?.trim?.() ?? '';
       if (v) dto[k] = v;
     });
 
     if (authorsList.length) dto.authorsIds = authorsList.map((a) => a.id);
-    if (bbkList.length) dto.bbkAbbs = bbkList.map((b) => b.code);
-    if (udcList.length) dto.udcAbbs = udcList.map((u) => u.code);
+    if (bbkList.length)    dto.bbkAbbs    = bbkList.map((b) => b.code);
+    if (udcList.length)    dto.udcAbbs    = udcList.map((u) => u.code);
+    if (grntiList.length)  dto.grntiCodes = grntiList.map((g) => g.code);
 
     if (values.bbkRaw)
-      dto.bbkRawCodes = values.bbkRaw
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean);
+      dto.bbkRawCodes = values.bbkRaw.split(',').map((x) => x.trim()).filter(Boolean);
     if (values.udcRaw)
-      dto.udcRawCodes = values.udcRaw
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean);
+      dto.udcRawCodes = values.udcRaw.split(',').map((x) => x.trim()).filter(Boolean);
+    if (values.grntiRaw)
+      dto.grntiRawCodes = values.grntiRaw.split(',').map((x) => x.trim()).filter(Boolean);
 
     const city = values.pubCity?.trim();
     const publisherName = publisher?.name ?? values.pubName?.trim();
@@ -204,15 +208,13 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
       toast.success(`Книга №${fullBook.id} сохранена`);
       onSaved();
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ??
-        'Не удалось сохранить книгу (см. консоль)';
+      const msg = err?.response?.data?.message ?? 'Не удалось сохранить книгу (см. консоль)';
       console.error(err);
       toast.error(msg);
     }
   });
 
-  /* ---------- UI ---------- */
+  /* ───────── UI ───────── */
   return (
     <BaseDialog
       open={!!book}
@@ -222,9 +224,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     >
       {/* spinner */}
       {isBookLoading && (
-        <p className="p-4 text-center text-sm text-gray-500">
-          Загрузка данных книги…
-        </p>
+        <p className="p-4 text-center text-sm text-gray-500">Загрузка данных книги…</p>
       )}
 
       {/* form */}
@@ -236,12 +236,13 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
           {/* simple inputs */}
           {(
             [
-              { name: 'title', label: 'Название' },
-              { name: 'bookType', label: 'Тип' },
-              { name: 'edit', label: 'Редактор' },
+              { name: 'title',            label: 'Название' },
+              { name: 'bookType',         label: 'Тип' },
+              { name: 'edit',             label: 'Редактор' },
               { name: 'editionStatement', label: 'Сведения об изд.' },
-              { name: 'series', label: 'Серия' },
-              { name: 'physDesc', label: 'Описание (страницы, иллюстрации и т.д.)' },
+              { name: 'series',           label: 'Серия' },
+              { name: 'physDesc',         label: 'Характеристики (страницы, иллюстрации и т.д.)' },
+              { name: 'description',      label: 'Описание' },
             ] as const
           ).map((f) => (
             <div key={f.name}>
@@ -256,24 +257,22 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
           {/* authors */}
           <div>
             <label className="block text-sm mb-1">Авторы</label>
-
             <input type="hidden" {...register('authors')} />
-
             <div className="flex flex-wrap gap-2">
-              {authorsList.map((a) => (
-                <AuthorChip
-                  key={a.id}
-                  name={[a.lastName, a.firstName, a.patronymic]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onRemove={() =>
-                    setAuthorsList((list) =>
-                      list.filter((x) => x.id !== a.id),
-                    )
-                  }
-                />
-              ))}
-
+              {authorsList.map((a) => {
+                const label = [a.lastName, a.firstName, a.patronymic]
+                  .filter(Boolean)
+                  .join(' ');
+                return (
+                  <Chip
+                    key={a.id}
+                    label={label}
+                    onRemove={() =>
+                      setAuthorsList((list) => list.filter((x) => x.id !== a.id))
+                    }
+                  />
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setAddAuthorDlgOpen(true)}
@@ -285,14 +284,14 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
             </div>
           </div>
 
-          {/* ---------- классификаторы ---------- */}
+          {/* ───── классификаторы ───── */}
           {/* BBK */}
           <div>
             <label className="block text-sm mb-1">ББК</label>
             <input type="hidden" {...register('bbkAbbs')} />
             <div className="flex flex-wrap gap-2">
               {bbkList.map((b) => (
-                <CodeChip
+                <Chip
                   key={b.id}
                   label={b.code}
                   onRemove={() =>
@@ -311,13 +310,13 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
             </div>
           </div>
 
-          {/* UDK */}
+          {/* UDC */}
           <div>
             <label className="block text-sm mb-1">УДК</label>
             <input type="hidden" {...register('udcAbbs')} />
             <div className="flex flex-wrap gap-2">
               {udcList.map((u) => (
-                <CodeChip
+                <Chip
                   key={u.id}
                   label={u.code}
                   onRemove={() =>
@@ -336,12 +335,35 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
             </div>
           </div>
 
-          {/* ---------- устаревшие классификаторы (только чтение) ---------- */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* GRNTI */}
+          <div>
+            <label className="block text-sm mb-1">ГРНТИ</label>
+            <input type="hidden" {...register('grntiAbbs')} />
+            <div className="flex flex-wrap gap-2">
+              {grntiList.map((g) => (
+                <Chip
+                  key={g.id}
+                  label={g.code}
+                  onRemove={() =>
+                    setGrntiList((list) => list.filter((x) => x.id !== g.id))
+                  }
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setAddGrntiDlgOpen(true)}
+                aria-label="Добавить ГРНТИ"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-gray-400 text-gray-500 hover:bg-gray-100"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* ───── устаревшие классификаторы (только чтение) ───── */}
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block text-sm mb-1 text-gray-500">
-                ББК* (устаревшие)
-              </label>
+              <label className="block text-sm mb-1 text-gray-500">ББК* (устаревшие)</label>
               <input
                 {...register('bbkRaw')}
                 readOnly
@@ -349,23 +371,26 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-gray-500">
-                УДК* (устаревшие)
-              </label>
+              <label className="block text-sm mb-1 text-gray-500">УДК* (устаревшие)</label>
               <input
                 {...register('udcRaw')}
                 readOnly
                 className="w-full rounded border bg-gray-100 px-2 py-1 text-sm text-gray-500 cursor-not-allowed"
               />
             </div>
+            <div>
+              <label className="block text-sm mb-1 text-gray-500">ГРНТИ* (устаревшие)</label>
+              <input
+                {...register('grntiRaw')}
+                readOnly
+                className="w-full rounded border bg-gray-100 px-2 py-1 text-sm text-gray-500 cursor-not-allowed"
+              />
+            </div>
           </div>
 
-          {/* ---------- издательство ---------- */}
+          {/* ───── издательство ───── */}
           <div>
-            <label className="block text-sm mb-1">
-              Издательство «Город, Издатель, Год»
-            </label>
-
+            <label className="block text-sm mb-1">Издательство &laquo;Город, Издатель, Год&raquo;</label>
             <div className="grid grid-cols-3 gap-2">
               {/* city */}
               <input
@@ -380,7 +405,9 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
                 <input
                   value={publisher?.name ?? ''}
                   onChange={(e) => {
-                    setPublisher(p => p ? { ...p, name: e.target.value } : { id: 0, name: e.target.value });
+                    setPublisher((p) =>
+                      p ? { ...p, name: e.target.value } : { id: 0, name: e.target.value }
+                    );
                     setValue('pubName', e.target.value, { shouldValidate: true });
                   }}
                   onClick={() => setAddPublisherDlgOpen(true)}
@@ -405,7 +432,10 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
                 placeholder="Год"
                 {...register('pubYear', { valueAsNumber: true })}
                 onKeyDown={(e) => {
-                  if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+                  if (
+                    !/[0-9]/.test(e.key) &&
+                    !['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+                  ) {
                     e.preventDefault();
                   }
                 }}
@@ -414,7 +444,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
             </div>
           </div>
 
-          {/* действия */}
+          {/* actions */}
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
@@ -435,14 +465,12 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
         </form>
       )}
 
-      {/* --- dialogs --- */}
+      {/* ───── dialogs ───── */}
       <AddAuthorDialog
         open={addAuthorDlgOpen}
         onClose={() => setAddAuthorDlgOpen(false)}
         onPick={(a) =>
-          setAuthorsList((list) =>
-            list.some((x) => x.id === a.id) ? list : [...list, a],
-          )
+          setAuthorsList((list) => (list.some((x) => x.id === a.id) ? list : [...list, a]))
         }
       />
 
@@ -450,9 +478,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
         open={addBbkDlgOpen}
         onClose={() => setAddBbkDlgOpen(false)}
         onPick={(c) =>
-          setBbkList((list) =>
-            list.some((x) => x.id === c.id) ? list : [...list, c],
-          )
+          setBbkList((list) => (list.some((x) => x.id === c.id) ? list : [...list, c]))
         }
       />
 
@@ -460,9 +486,15 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
         open={addUdkDlgOpen}
         onClose={() => setAddUdkDlgOpen(false)}
         onPick={(c) =>
-          setUdcList((list) =>
-            list.some((x) => x.id === c.id) ? list : [...list, c],
-          )
+          setUdcList((list) => (list.some((x) => x.id === c.id) ? list : [...list, c]))
+        }
+      />
+
+      <AddGrntiDialog
+        open={addGrntiDlgOpen}
+        onClose={() => setAddGrntiDlgOpen(false)}
+        onPick={(c) =>
+          setGrntiList((list) => (list.some((x) => x.id === c.id) ? list : [...list, c]))
         }
       />
 

@@ -104,9 +104,21 @@ export interface BorrowRecord {
   bookCopy: BookCopy;
 }
 
+export interface Grnti {
+  id: number;
+  code: string;
+  description: string | null;
+}
+
+export interface BookGrntiRaw {
+  bookId: number;
+  grntiCode: string;
+}
+
 export interface Book {
   id: number;
   title: string | null;
+  description: string;
   bookType: string | null;
   edit: string | null;
   editionStatement: string | null;
@@ -119,38 +131,10 @@ export interface Book {
   udcRaws: BookUdcRaw[] | null;
   bookCopies: BookCopy[] | null;
   publicationPlaces: BookPubPlace[] | null;
-}
-
-/* ---------- для компонентов ---------- */
-export interface AuthorChipProps {
-  name: string;
-  onRemove: () => void;
-}
-
-export interface BaseDialogProps {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  title: string;
-  children: ReactNode;
-  widthClass?: string;
-}
-
-export interface DeleteConfirmDialogProps {
-  book: Book | null;
-  onClose: () => void;
-  onDeleted: () => void;
-}
-
-export interface AddAuthorDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onPick: (author: Author) => void;
-}
-
-export interface EditBookModalProps {
-  book: Book | null;
-  onClose: () => void;
-  onSaved: () => void;
+  grntiAbbs?: string;
+  grntiRaw?:  string;
+  grntis?: { id: number; code: string }[];
+  grntiRaws?: { grntiCode: string }[];
 }
 
 export const bookSchema = z.object({
@@ -160,14 +144,16 @@ export const bookSchema = z.object({
   editionStatement: z.string().optional(),
   series: z.string().optional(),
   physDesc: z.string().optional(),
+  description: z.string().optional(),
   authors: z.string().optional(),
   bbkAbbs: z.string().optional(),
   udcAbbs: z.string().optional(),
   bbkRaw: z.string().optional(),
   udcRaw: z.string().optional(),
+  grntiAbbs: z.string().optional(),
+  grntiRaw: z.string().optional(),
   pubCity: z.string().optional(),
   pubName: z.string().optional(),
   pubYear: z.number().optional(),
 });
-
 export type FormValues = z.infer<typeof bookSchema>;

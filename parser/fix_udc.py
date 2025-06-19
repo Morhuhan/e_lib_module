@@ -35,14 +35,11 @@ def _cli(dsn: str) -> None:
         print(f"Всего пар RAW: {len(raw_pairs)}")
         print(f"Совпали: {len(links)}   |   Пропущены: {skipped}")
 
-<<<<<<< HEAD
-=======
         print("\nПример INSERT-ов:")
         for book_id, udc_id in links[:10]:
             print(f"INSERT INTO public.book_udc (book_id, udc_id) "
                   f"VALUES ({book_id}, {udc_id});")
 
->>>>>>> 17a3b8170ab6bda512c448c38bb77960536aa94a
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit("Использование: python fix_udc.py \"<строка-DSN>\"")
